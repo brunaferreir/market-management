@@ -1,7 +1,7 @@
 from flask_jwt_extended import create_access_token
 from src.Domain.user import UserDomain
 from src.Infrastructure.Model.user import User
-from src.config.data_base import db 
+from src.config.data_base import db, bcrypt
 import random
 from src.Infrastructure.http.whats_app import enviar_codigo_whatsapp
 from src.Infrastructure.Model.activation_code import ActivationCode
@@ -9,12 +9,13 @@ from src.Infrastructure.Model.activation_code import ActivationCode
 class UserService:
     @staticmethod
     def create_user(name, cnpj, email, celular, password):
+        hashed_password = bcrypt.generate_password_hash(password).decode("utf-8")
         new_user = UserDomain(
             name=name,
             cnpj=cnpj,
             email=email,
             celular=celular,
-            password=password, 
+            password=hashed_password, 
             status="inactive"
         )
         
@@ -31,18 +32,19 @@ class UserService:
         db.session.commit()
         return user
 
-
     @staticmethod
     def get_seller_by_id(user_id=None):
         if user_id:
             return db.session.get(User, user_id)
-        
+        return None
+
     @staticmethod
     def update_user(user_id, data):
         user = db.session.get(User, user_id)
         if user:
+           
             if 'password' in data:
-                data['password'] = data['password']
+                data['password'] = bcrypt.generate_password_hash(data['password']).decode("utf-8")
 
             for key, value in data.items():
                 setattr(user, key, value)
@@ -53,11 +55,11 @@ class UserService:
     @staticmethod
     def authenticate_user(email, password):
         user = db.session.query(User).filter_by(email=email).first()
-        if user and user.password == password:
+        if user and bcrypt.check_password_hash(user.password, password):
             return user
         return None
 
-    #---------------------- CADASTRAR VENDEDOR + ENVIAR CÓDIGO
+    
     @staticmethod
     def create_seller(name, cnpj, email, celular, password):
         try:
@@ -75,7 +77,7 @@ class UserService:
         except Exception as e:
             return {"error": f"Erro ao criar vendedor: {e}"}
 
-    #---------------------- ATIVAR VENDEDOR COM CÓDIGO
+   
     @staticmethod
     def activate_seller(celular, codigo):
         user = db.session.query(User).filter_by(celular=celular).first()
@@ -94,7 +96,7 @@ class UserService:
 
         return {"message": "Usuário ativado com sucesso!"}
         
-    #---------------------- LOGIN (só se ativo)
+  
     @staticmethod
     def login_seller(email, password):
         user = UserService.authenticate_user(email, password)
@@ -104,6 +106,34 @@ class UserService:
         if user.status != "active":
             return {"error": "Usuário inativo. Ative primeiro."}
 
-        # Gera o token de acesso
+       
         token = create_access_token(identity=user.id)
         return {"token": token, "message": "Login realizado com sucesso!"}
+    
+    
+    @staticmethod
+    def delete_user(user_id):
+        user = db.session.get(User, user_id)
+        if user:
+            activation = db.session.query(ActivationCode).filter_by(user_id=user.id).first()
+            if activation:
+                db.session.delete(activation)
+            
+           
+            db.session.delete(user)
+            db.session.commit()
+            return True
+        return False
+
+
+
+
+
+    @staticmethod
+    def inactivate_user(user_id):
+        user = db.session.get(User, user_id)
+        if user:
+            user.status = "inactive"
+            db.session.commit()
+            return user
+        return None

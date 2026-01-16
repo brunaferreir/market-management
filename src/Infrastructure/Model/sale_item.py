@@ -1,0 +1,44 @@
+from src.config.data_base import db
+
+
+class SaleItem(db.Model):
+    __tablename__ = "sale_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    sale_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sales.id"),
+        nullable=False
+    )
+
+    product_id = db.Column(
+        db.Integer,
+        db.ForeignKey("products.id"),
+        nullable=False
+    )
+
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False)
+    subtotal = db.Column(db.Float, nullable=False)
+
+    # 🔗 Relacionamentos
+    sale = db.relationship(
+        "Sale",
+        back_populates="items"
+    )
+
+    product = db.relationship(
+        "Product"
+    )
+
+    def __repr__(self):
+        return f"<SaleItem sale_id={self.sale_id} product_id={self.product_id}>"
+
+    def to_dict(self):
+        return {
+            "product_id": self.product_id,
+            "quantity": self.quantity,
+            "unit_price": self.unit_price,
+            "subtotal": self.subtotal
+        }
